@@ -6,7 +6,7 @@ import webbrowser
 
 import httpx
 
-from PySide6.QtCore import Qt, Signal, QObject
+from PySide6.QtCore import Qt, Signal, QObject, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel,
@@ -94,14 +94,60 @@ class Dashboard(QMainWindow):
         self.streamer.frame.connect(self._update_snapshot)
         self.streamer.status.connect(self.add_console_line)
         self.setWindowTitle("cc2-dash Companion")
+        
+        # Transparent background and frameless flags
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        
+        # Outer container styled as #page for gradient/border
+        main_widget = QWidget(self)
+        main_widget.setObjectName("page")
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(2, 2, 2, 2)
+        main_layout.setSpacing(0)
+        
+        # Custom Title Bar
+        title_bar = QWidget()
+        title_bar.setObjectName("titleBar")
+        title_bar_layout = QHBoxLayout(title_bar)
+        title_bar_layout.setContentsMargins(12, 6, 12, 6)
+        title_bar_layout.setSpacing(8)
+        
+        self.status_dot = QLabel()
+        self.status_dot.setObjectName("statusDot")
+        self.status_dot.setFixedSize(10, 10)
+        self.status_dot.setStyleSheet("background-color: #5f646e; border-radius: 5px;")
+        title_bar_layout.addWidget(self.status_dot)
+        
+        title_text = QLabel("cc2-dash Companion")
+        title_text.setObjectName("titleBarText")
+        title_bar_layout.addWidget(title_text)
+        title_bar_layout.addStretch(1)
+        
+        min_btn = QPushButton("—")
+        min_btn.setObjectName("titleBarBtn")
+        min_btn.clicked.connect(self.showMinimized)
+        title_bar_layout.addWidget(min_btn)
+        
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("titleBarBtnClose")
+        close_btn.clicked.connect(self.close)
+        title_bar_layout.addWidget(close_btn)
+        
+        main_layout.addWidget(title_bar)
+        
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_overview_tab(), "Overview")
         self.tabs.addTab(self._build_camera_ai_tab(), "Camera / AI")
         self.tabs.addTab(self._build_console_tab(), "Console")
         self.tabs.addTab(self._build_settings_tab(), "Settings")
-        self.setCentralWidget(self.tabs)
+        main_layout.addWidget(self.tabs)
+        
+        self.setCentralWidget(main_widget)
+        
         self.apply_theme()
         self._lock_compact_size()
+        
         if self.cfg.remember_window_geometry and self.cfg.window_x >= 0 and self.cfg.window_y >= 0:
             self.move(int(self.cfg.window_x), int(self.cfg.window_y))
         self.add_console_line("BOOT", "cc2-dash Companion UI initialized")
@@ -112,32 +158,27 @@ class Dashboard(QMainWindow):
 
     def _page(self) -> tuple[QWidget, QVBoxLayout]:
         root = QWidget()
-        root.setObjectName("page")
+        root.setObjectName("tabPage")
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(6)
         return root, layout
 
     def _card(self, object_name: str = "card") -> tuple[QFrame, QVBoxLayout]:
         frame = QFrame()
         frame.setObjectName(object_name)
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(9)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(5)
         return frame, layout
 
     def _header(self) -> QHBoxLayout:
         header = QHBoxLayout()
-        title_box = QVBoxLayout()
-        self.title = QLabel("cc2-dash Companion")
-        self.title.setObjectName("title")
-        self.subtitle = QLabel("LAN printer cockpit • tray monitor • Portal AI status")
-        self.subtitle.setObjectName("muted")
-        title_box.addWidget(self.title)
-        title_box.addWidget(self.subtitle)
+        self.overview_label = QLabel("Overview")
+        self.overview_label.setObjectName("sectionTitle")
         self.connection_pill = QLabel("Offline")
         self.connection_pill.setObjectName("pill")
-        header.addLayout(title_box, 1)
+        header.addWidget(self.overview_label, 1)
         header.addWidget(self.connection_pill)
         return header
 
@@ -145,22 +186,19 @@ class Dashboard(QMainWindow):
         root, layout = self._page()
         layout.addLayout(self._header())
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(12)
-
         printer_card, c = self._card()
         c.addWidget(self._section("Printer"))
         self.printer_name = QLabel("Printer: —")
         self.printer_state = QLabel("State: —")
         self.file_label = QLabel("File: —")
+        self.file_label.setWordWrap(True)
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         c.addWidget(self.printer_name)
         c.addWidget(self.printer_state)
         c.addWidget(self.file_label)
         c.addWidget(self.progress)
-        grid.addWidget(printer_card, 0, 0)
+        layout.addWidget(printer_card)
 
         ai_card, ai = self._card()
         ai.addWidget(self._section("Portal AI"))
@@ -171,7 +209,7 @@ class Dashboard(QMainWindow):
         ai.addWidget(self.ai_status)
         ai.addWidget(self.ai_monitor)
         ai.addWidget(self.ai_last)
-        grid.addWidget(ai_card, 0, 1)
+        layout.addWidget(ai_card)
 
         host_card, host = self._card()
         host.addWidget(self._section("Host"))
@@ -181,19 +219,19 @@ class Dashboard(QMainWindow):
         host.addWidget(self.host_info)
         host.addWidget(self.version_info)
         row2 = QHBoxLayout()
+        row2.setSpacing(6)
         refresh = QPushButton("Refresh")
         refresh.clicked.connect(self.refresh_requested.emit)
-        open_dash = QPushButton("Open Dashboard")
+        open_dash = QPushButton("Dashboard")
         open_dash.clicked.connect(lambda: webbrowser.open(self.cfg.normalized_host_url + self.cfg.open_full_dashboard_path))
-        open_portal = QPushButton("Open Portal")
+        open_portal = QPushButton("Portal")
         open_portal.clicked.connect(lambda: webbrowser.open(self.cfg.normalized_host_url + self.cfg.open_portal_path))
         row2.addWidget(refresh)
         row2.addWidget(open_dash)
         row2.addWidget(open_portal)
         host.addLayout(row2)
-        grid.addWidget(host_card, 1, 0, 1, 2)
+        layout.addWidget(host_card)
 
-        layout.addLayout(grid)
         layout.addStretch(1)
         return root
 
@@ -203,7 +241,7 @@ class Dashboard(QMainWindow):
         cam.addWidget(self._section("Camera Snapshot"))
         self.snapshot = QLabel("No snapshot yet")
         self.snapshot.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.snapshot.setMinimumHeight(260)
+        self.snapshot.setFixedHeight(210)
         cam.addWidget(self.snapshot)
         self.stream_status = QLabel("Camera: waiting for printer relay")
         self.stream_status.setObjectName("muted")
@@ -299,6 +337,16 @@ class Dashboard(QMainWindow):
         if state.selected_printer_id and self.cfg.selected_printer_id != state.selected_printer_id:
             self.cfg.selected_printer_id = state.selected_printer_id
             save_config(self.cfg)
+        if hasattr(self, "status_dot"):
+            level = state.tray_level()
+            dot_color = {
+                "offline": "#5f646e",
+                "idle": "#00b2ff",
+                "printing": "#00ff8c",
+                "warn": "#ffbf40",
+                "alert": "#ff4556"
+            }.get(level, "#00b2ff")
+            self.status_dot.setStyleSheet(f"background-color: {dot_color}; border-radius: 5px;")
         self.connection_pill.setText("Connected" if state.connected else "Offline")
         self.host_info.setText(f"Host: {self.cfg.normalized_host_url}" + (f" — {state.error}" if state.error else ""))
         build = (state.version.get("build") or state.health.get("build") or {}) if isinstance(state.version, dict) else {}
@@ -346,8 +394,7 @@ class Dashboard(QMainWindow):
     def _lock_compact_size(self) -> None:
         """Make the mini dashboard behave like a compact tray widget, not a resizable app window."""
         self.adjustSize()
-        # A fixed card-friendly footprint: compact, predictable, and large enough for the console/camera.
-        self.setFixedSize(560, 680)
+        self.setFixedSize(380, 540)
 
     def _save_window_geometry(self) -> None:
         if not self.cfg.remember_window_geometry:
@@ -355,19 +402,72 @@ class Dashboard(QMainWindow):
         geo = self.geometry()
         self.cfg.window_x = int(geo.x())
         self.cfg.window_y = int(geo.y())
-        # Size is fixed by the card layout; only remember screen position.
         save_config(self.cfg)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            if event.position().y() < 45:
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                self._dragging = True
+                event.accept()
+            else:
+                super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if getattr(self, "_dragging", False):
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if getattr(self, "_dragging", False):
+            self._dragging = False
+            self._save_window_geometry()
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        if self.cfg.remember_window_geometry:
+            pos = event.pos()
+            self.cfg.window_x = pos.x()
+            self.cfg.window_y = pos.y()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self._save_window_geometry()
         self.streamer.stop()
+        if getattr(self, "_fading_out", False):
+            event.accept()
+        else:
+            self._fading_out = True
+            event.ignore()
+            self._fade_out_anim = QPropertyAnimation(self, b"windowOpacity")
+            self._fade_out_anim.setDuration(200)
+            self._fade_out_anim.setStartValue(self.windowOpacity())
+            self._fade_out_anim.setEndValue(0.0)
+            self._fade_out_anim.finished.connect(self._on_fade_out_finished)
+            self._fade_out_anim.start()
+
+    def _on_fade_out_finished(self) -> None:
         self.hide()
-        event.ignore()
+        self._fading_out = False
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
+        self._fading_out = False
         if self._camera_stream_url:
             self.streamer.start(self._camera_stream_url)
+        else:
+            self._update_snapshot(self.state.last_snapshot_bytes)
+        
+        self.setWindowOpacity(0.0)
+        self._fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_anim.setDuration(250)
+        self._fade_anim.setStartValue(0.0)
+        self._fade_anim.setEndValue(0.96)
+        self._fade_anim.start()
 
     def hideEvent(self, event) -> None:  # type: ignore[override]
         self._save_window_geometry()
@@ -375,11 +475,11 @@ class Dashboard(QMainWindow):
         super().hideEvent(event)
 
     def _update_snapshot(self, data: bytes | None) -> None:
-        if not data:
+        if not self.isVisible() or not data:
             return
         pix = QPixmap()
         if pix.loadFromData(data):
-            self.snapshot.setPixmap(pix.scaled(self.snapshot.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.snapshot.setPixmap(pix.scaled(self.snapshot.width(), self.snapshot.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
     def _style_snapshot(self) -> None:
         if hasattr(self, "snapshot"):

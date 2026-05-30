@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt, QPropertyAnimation
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget
@@ -20,17 +20,51 @@ class SettingsDialog(QDialog):
         self.setMinimumWidth(520)
         self.setStyleSheet(qss(self.cfg.theme))
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(18, 18, 18, 18)
-        root.setSpacing(12)
+        # Transparent background and frameless flags
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
+        # Outer container styled as #page for gradient/border
+        page = QWidget(self)
+        page.setObjectName("page")
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(14, 12, 14, 12)
+        page_layout.setSpacing(10)
+
+        # Custom Title Bar for Settings Dialog
+        title_bar = QWidget()
+        title_bar.setObjectName("titleBar")
+        title_bar_layout = QHBoxLayout(title_bar)
+        title_bar_layout.setContentsMargins(0, 0, 0, 0)
+        title_bar_layout.setSpacing(8)
+
+        # Status Dot
+        status_dot = QLabel()
+        status_dot.setObjectName("statusDot")
+        status_dot.setFixedSize(10, 10)
+        status_dot.setStyleSheet("background-color: #00b2ff; border-radius: 5px;")
+        title_bar_layout.addWidget(status_dot)
+
+        title_text = QLabel("cc2-dash Companion Settings")
+        title_text.setObjectName("titleBarText")
+        title_bar_layout.addWidget(title_text)
+        title_bar_layout.addStretch(1)
+
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("titleBarBtnClose")
+        close_btn.clicked.connect(self.reject)
+        title_bar_layout.addWidget(close_btn)
+
+        page_layout.addWidget(title_bar)
+
+        # Settings content
         title = QLabel("Companion Settings")
         title.setObjectName("title")
-        root.addWidget(title)
+        page_layout.addWidget(title)
 
         hint = QLabel("Configure the cc2-dash-lite host, tray behavior, and cc2-style theme.")
         hint.setObjectName("muted")
-        root.addWidget(hint)
+        page_layout.addWidget(hint)
 
         form = QFormLayout()
         form.setSpacing(10)
@@ -74,7 +108,7 @@ class SettingsDialog(QDialog):
         form.addRow("Startup", self.start_minimized_check)
         form.addRow("Notifications", self.notify_check)
         form.addRow("Window", self.remember_geom_check)
-        root.addLayout(form)
+        page_layout.addLayout(form)
 
         path_row = QHBoxLayout()
         path_label = QLabel(f"Config file: {CONFIG_PATH}")
@@ -84,15 +118,80 @@ class SettingsDialog(QDialog):
         open_cfg = QPushButton("Open Folder")
         open_cfg.clicked.connect(self._open_config_folder)
         path_row.addWidget(open_cfg)
-        root.addLayout(path_row)
+        page_layout.addLayout(path_row)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
+        page_layout.addWidget(buttons)
+
+        # Layout on self containing the page card
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.addWidget(page)
 
     def _preview_theme(self) -> None:
         self.setStyleSheet(qss(self.theme_combo.currentData()))
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            if event.position().y() < 40:
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                self._dragging = True
+                event.accept()
+            else:
+                super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if getattr(self, "_dragging", False):
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._dragging = False
+        event.accept()
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        self._fading_out = False
+        self.setWindowOpacity(0.0)
+        self._fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_anim.setDuration(250)
+        self._fade_anim.setStartValue(0.0)
+        self._fade_anim.setEndValue(0.96)
+        self._fade_anim.start()
+
+    def hide_animated(self, accept_or_reject: str = "reject") -> None:
+        self._fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_anim.setDuration(200)
+        self._fade_anim.setStartValue(self.windowOpacity())
+        self._fade_anim.setEndValue(0.0)
+        self._fade_anim.finished.connect(lambda: self._on_fade_out_finished(accept_or_reject))
+        self._fade_anim.start()
+
+    def _on_fade_out_finished(self, action: str) -> None:
+        self.hide()
+        self.setWindowOpacity(0.96)
+        if action == "accept":
+            super().accept()
+        else:
+            super().reject()
+
+    def accept(self) -> None:
+        if getattr(self, "_fading_out", False):
+            super().accept()
+        else:
+            self._fading_out = True
+            self.hide_animated("accept")
+
+    def reject(self) -> None:
+        if getattr(self, "_fading_out", False):
+            super().reject()
+        else:
+            self._fading_out = True
+            self.hide_animated("reject")
 
     def _clean_path(self, value: str, fallback: str) -> str:
         value = (value or "").strip()
@@ -113,7 +212,6 @@ class SettingsDialog(QDialog):
         self.cfg.open_portal_path = self._clean_path(self.portal_path.text(), "/portal")
         save_config(self.cfg)
         self.config_changed.emit(self.cfg)
-        self.accept()
 
     def _open_config_folder(self) -> None:
         import os

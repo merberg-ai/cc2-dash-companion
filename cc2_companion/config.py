@@ -19,12 +19,12 @@ class CompanionConfig:
     selected_printer_id: str = ""
     open_full_dashboard_path: str = "/"
     open_portal_path: str = "/portal"
-    theme: str = "crt_green"
+    theme: str = "octo_dark_blue"
     # Compact fixed window defaults. Size is controlled by the UI; position can be remembered.
     window_x: int = -1
     window_y: int = -1
-    window_w: int = 560
-    window_h: int = 680
+    window_w: int = 380
+    window_h: int = 540
     remember_window_geometry: bool = True
     enable_camera_stream: bool = True  # legacy config key; streaming is automatic when available
 

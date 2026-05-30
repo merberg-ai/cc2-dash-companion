@@ -28,6 +28,22 @@ THEMES: dict[str, Theme] = {
 }
 
 
+def hex_to_rgba(color_str: str, alpha: float) -> str:
+    color_str = color_str.strip()
+    if color_str.startswith("rgba"):
+        return color_str
+    if color_str.startswith("#"):
+        hex_val = color_str.lstrip("#")
+        if len(hex_val) == 3:
+            hex_val = "".join(c * 2 for c in hex_val)
+        if len(hex_val) == 6:
+            r = int(hex_val[0:2], 16)
+            g = int(hex_val[2:4], 16)
+            b = int(hex_val[4:6], 16)
+            return f"rgba({r}, {g}, {b}, {alpha})"
+    return color_str
+
+
 def get_theme(theme_id: str | None) -> Theme:
     return THEMES.get(theme_id or "octo_dark_blue", THEMES["octo_dark_blue"])
 
@@ -42,27 +58,68 @@ def qss(theme_id: str | None) -> str:
     r = t.radius
     base_font = t.fonts.get("base", "Segoe UI")
     mono_font = t.fonts.get("mono", "Consolas")
+    
+    # Border with alpha for nice border glow
+    border_color = hex_to_rgba(c['border'], 0.4) if c['border'].startswith('rgba') else c['border']
+    
     return f"""
-QMainWindow, QDialog, QWidget {{ background: {c['bg']}; color: {c['text']}; font-family: {base_font}, Arial; font-size: 10.5pt; }}
-QWidget#page {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {c['bg']}, stop:1 {c['bg2']}); }}
-QFrame#card {{ background: {c['card']}; border: 1px solid {c['border']}; border-radius: {r}px; }}
-QFrame#softCard {{ background: {c['card_soft']}; border: 1px solid {c['border']}; border-radius: {max(8, r - 2)}px; }}
-QLabel#title {{ font-size: 23px; font-weight: 900; color: {c['text']}; }}
-QLabel#sectionTitle {{ font-size: 15px; font-weight: 800; color: {c['text']}; }}
+QMainWindow, QDialog {{ background: transparent; }}
+QWidget#page {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {hex_to_rgba(c['bg'], 0.88)}, stop:1 {hex_to_rgba(c['bg2'], 0.88)});
+    border: 1px solid {border_color};
+    border-radius: {r}px;
+}}
+QWidget#tabPage {{ background: transparent; }}
+QFrame#card {{ background: {hex_to_rgba(c['card'], 0.85)}; border: 1px solid {c['border']}; border-radius: {r}px; }}
+QFrame#softCard {{ background: {hex_to_rgba(c['card_soft'], 0.85)}; border: 1px solid {c['border']}; border-radius: {max(8, r - 2)}px; }}
+QLabel {{ background: transparent; color: {c['text']}; font-family: {base_font}, Arial; font-size: 10pt; }}
+QLabel#title {{ font-size: 20px; font-weight: 900; color: {c['text']}; }}
+QLabel#sectionTitle {{ font-size: 14px; font-weight: 800; color: {c['text']}; margin-bottom: 2px; }}
 QLabel#muted {{ color: {c['muted']}; }}
-QLabel#smallMuted {{ color: {c['muted']}; font-size: 9pt; }}
-QLabel#pill {{ background: {c['card_soft']}; border: 1px solid {c['primary']}; border-radius: 999px; padding: 5px 10px; color: {c['text']}; font-weight: 800; }}
-QPushButton {{ background: {c['primary']}; border: 1px solid {c['primary_hover']}; border-radius: 10px; padding: 8px 11px; color: {c['text']}; font-weight: 800; }}
+QLabel#smallMuted {{ color: {c['muted']}; font-size: 8.5pt; }}
+QLabel#pill {{ background: {c['card_soft']}; border: 1px solid {c['primary']}; border-radius: 12px; padding: 3px 8px; color: {c['text']}; font-weight: 800; font-size: 9pt; }}
+
+/* Title Bar Styles */
+QWidget#titleBar { background: transparent; }
+QLabel#titleBarText { font-weight: 800; font-size: 10pt; color: {c['text']}; }
+QPushButton#titleBarBtn, QPushButton#titleBarBtnClose {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: {c['muted']};
+    font-weight: bold;
+    font-size: 10pt;
+    min-width: 28px;
+    min-height: 28px;
+    max-width: 28px;
+    max-height: 28px;
+    padding: 0;
+}
+QPushButton#titleBarBtn:hover {
+    background: {hex_to_rgba(c['primary'], 0.25)};
+    color: {c['text']};
+}
+QPushButton#titleBarBtnClose:hover {
+    background: #ef4444;
+    color: white;
+}
+
+QPushButton {{ background: {c['primary']}; border: 1px solid {c['primary_hover']}; border-radius: 8px; padding: 6px 10px; color: {c['text']}; font-weight: 800; font-size: 9.5pt; }}
 QPushButton:hover {{ background: {c['primary_hover']}; }}
 QPushButton:pressed {{ background: {c['card_soft']}; }}
-QLineEdit, QSpinBox, QComboBox {{ background: {c['bg2']}; border: 1px solid {c['border']}; border-radius: 9px; padding: 7px; color: {c['text']}; selection-background-color: {c['primary']}; }}
+QLineEdit, QSpinBox, QComboBox {{ background: {hex_to_rgba(c['bg2'], 0.9)}; border: 1px solid {c['border']}; border-radius: 8px; padding: 6px; color: {c['text']}; selection-background-color: {c['primary']}; }}
+QComboBox QAbstractItemView {{ background: {c['bg2']}; border: 1px solid {c['border']}; selection-background-color: {c['primary']}; color: {c['text']}; }}
 QCheckBox {{ spacing: 8px; color: {c['text']}; }}
-QProgressBar {{ border: 1px solid {c['border']}; border-radius: 9px; text-align: center; background: {c['bg2']}; color: {c['text']}; font-weight: 700; }}
-QProgressBar::chunk {{ background: {c['success']}; border-radius: 9px; }}
-QTabWidget::pane {{ border: 0; }}
-QTabBar::tab {{ background: {c['bg2']}; color: {c['muted']}; padding: 10px 15px; margin-right: 3px; border-top-left-radius: 9px; border-top-right-radius: 9px; }}
-QTabBar::tab:selected {{ background: {c['card']}; color: {c['text']}; border: 1px solid {c['border']}; border-bottom: 0; }}
-QTextEdit#console {{ background: #000000; border: 1px solid {c['border']}; border-radius: {max(8, r - 3)}px; color: {c['success']}; font-family: {mono_font}, Consolas, monospace; font-size: 10pt; }}
-QScrollBar:vertical {{ background: {c['bg2']}; width: 12px; }}
-QScrollBar::handle:vertical {{ background: {c['primary']}; border-radius: 6px; min-height: 24px; }}
+QProgressBar {{ border: 1px solid {c['border']}; border-radius: 8px; text-align: center; background: {hex_to_rgba(c['bg2'], 0.9)}; color: {c['text']}; font-weight: 700; font-size: 9pt; }}
+QProgressBar::chunk {{ background: {c['success']}; border-radius: 8px; }}
+
+QTabWidget {{ background: transparent; }}
+QTabWidget::pane {{ border: 0; background: transparent; }}
+QTabBar::tab {{ background: {hex_to_rgba(c['bg2'], 0.6)}; color: {c['muted']}; padding: 8px 12px; margin-right: 3px; border-top-left-radius: 8px; border-top-right-radius: 8px; font-weight: 700; font-size: 9.5pt; }}
+QTabBar::tab:selected {{ background: {hex_to_rgba(c['card'], 0.85)}; color: {c['text']}; border: 1px solid {c['border']}; border-bottom: 0; }}
+
+QTextEdit#console {{ background: #000000; border: 1px solid {c['border']}; border-radius: {max(8, r - 3)}px; color: {c['success']}; font-family: {mono_font}, Consolas, monospace; font-size: 9.5pt; }}
+QScrollBar:vertical {{ background: {c['bg2']}; width: 10px; }}
+QScrollBar::handle:vertical {{ background: {c['primary']}; border-radius: 5px; min-height: 20px; }}
 """
+
