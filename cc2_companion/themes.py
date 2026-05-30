@@ -80,9 +80,9 @@ QLabel#smallMuted {{ color: {c['muted']}; font-size: 8.5pt; }}
 QLabel#pill {{ background: {c['card_soft']}; border: 1px solid {c['primary']}; border-radius: 12px; padding: 3px 8px; color: {c['text']}; font-weight: 800; font-size: 9pt; }}
 
 /* Title Bar Styles */
-QWidget#titleBar { background: transparent; }
-QLabel#titleBarText { font-weight: 800; font-size: 10pt; color: {c['text']}; }
-QPushButton#titleBarBtn, QPushButton#titleBarBtnClose {
+QWidget#titleBar {{ background: transparent; }}
+QLabel#titleBarText {{ font-weight: 800; font-size: 10pt; color: {c['text']}; }}
+QPushButton#titleBarBtn, QPushButton#titleBarBtnClose {{
     background: transparent;
     border: none;
     border-radius: 4px;
@@ -94,15 +94,15 @@ QPushButton#titleBarBtn, QPushButton#titleBarBtnClose {
     max-width: 28px;
     max-height: 28px;
     padding: 0;
-}
-QPushButton#titleBarBtn:hover {
+}}
+QPushButton#titleBarBtn:hover {{
     background: {hex_to_rgba(c['primary'], 0.25)};
     color: {c['text']};
-}
-QPushButton#titleBarBtnClose:hover {
+}}
+QPushButton#titleBarBtnClose:hover {{
     background: #ef4444;
     color: white;
-}
+}}
 
 QPushButton {{ background: {c['primary']}; border: 1px solid {c['primary_hover']}; border-radius: 8px; padding: 6px 10px; color: {c['text']}; font-weight: 800; font-size: 9.5pt; }}
 QPushButton:hover {{ background: {c['primary_hover']}; }}
