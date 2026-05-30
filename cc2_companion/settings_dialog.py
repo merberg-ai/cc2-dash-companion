@@ -212,6 +212,7 @@ class SettingsDialog(QDialog):
         self.cfg.open_portal_path = self._clean_path(self.portal_path.text(), "/portal")
         save_config(self.cfg)
         self.config_changed.emit(self.cfg)
+        self.accept()
 
     def _open_config_folder(self) -> None:
         import os
